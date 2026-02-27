@@ -25,19 +25,22 @@
 - **Epoch**: 5
 
 ```
-Epoch 1, Loss: 0.5231210450496515 
-Epoch 2, Loss: 0.35124753324119634 
-Epoch 3, Loss: 0.2891064774235496 
-Epoch 4, Loss: 0.2556046117859347 
-Epoch 5, Loss: 0.23174996085731728
+Epoch 1, Loss: 0.52 
+Epoch 2, Loss: 0.34 
+Epoch 3, Loss: 0.29
+Epoch 4, Loss: 0.25
+Epoch 5, Loss: 0.22
 ```
+- **Time**: 23m 58.6s
 
 #### Tests Results
-**Test Accuracy**: 89.84%
+- **Test Accuracy**: 89.84%
+- **Time**: 26.2s
 
 #### Measurements
+- **Size**: 8MB
 - **Total params**: 2236682M 
 - **Trainable params**: 2236682M 
 - **FLOPs**: 312926016
-- **Latency**: 6.99 ms
+- **Latency(Dummy Data)**: 6.99ms
 
