@@ -1,6 +1,6 @@
 ## Pre Trained Model Results
 
-26th Feb 2026
+27th Feb 2026
 
 ### Device = GPU
  - **Device Name**: Tesla T4
@@ -34,7 +34,7 @@ Epoch 5, Loss: 0.22
 - **Time**: 23m 58.6s
 
 #### Tests Results
-- **Test Accuracy**: 89.84%
+- **Test Accuracy**: 90.12%
 - **Time**: 26.2s
 
 #### Measurements
