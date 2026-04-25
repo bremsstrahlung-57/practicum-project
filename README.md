@@ -115,7 +115,7 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 
 ---
 
-## Repo Structure (Expected)
+## Repo Structure
 
 ```
 │   .gitignore
