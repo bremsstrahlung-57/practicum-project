@@ -53,24 +53,39 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 
 ---
 
-## Phase 3 — Quantization (In Progress)
+## Phase 3 — Quantization (Complete)
 
-**Method:** Dynamic INT8 quantization via `torch.quantization`
+**Method:** Post-Training Static Quantization (PTQ) via `torch.ao.quantization` FX graph mode  
+**Backend:** fbgemm (x86 CPU)  
+**Calibration:** 100 batches from test set (no augmentation)
+
+### Baseline + Static INT8
 
 | Metric | FP32 | INT8 |
 |--------|------|------|
-| Accuracy | 95.34% | 94.81% |
-| Model Size | 44.77 MB | 44.76 MB |
-| Latency (CPU) | 28.21 ms | 28.18 ms |
+| Accuracy | 95.24% | 95.25% |
+| Model Size | 44.77 MB | 11.30 MB |
+| Latency (CPU) | 39.22 ms | 13.58 ms |
+| Size Reduction | — | **3.96x** |
+| Speedup | — | **2.89x** |
+
+### Pruned + Static INT8 (selected sparsity levels)
+
+| Sparsity | FP32 Acc | INT8 Acc | Size | Speedup |
+|----------|----------|----------|------|---------|
+| 10% | ~95.3% | ~95.3% | 11.30 MB | ~2.3x |
+| 30% | ~95.2% | ~95.2% | 11.30 MB | ~2.1x |
+| 50% | ~95.1% | ~95.1% | 11.30 MB | ~1.9x |
+| 70% | ~94.9% | ~94.9% | 11.30 MB | ~2.6x |
+| 90% | ~42.0% | ~10.0% | 11.30 MB | — |
 
 **Key findings:**
-- 0.53% accuracy drop — acceptable, essentially negligible
-- Size reduction: ~0.01 MB — practically zero
-- Latency improvement: ~0.03 ms — noise, not a result
-- Dynamic quantization quantizes weights statically but activations at runtime; for conv-heavy models like ResNet-18, this yields little benefit — the compute bottleneck is in the convolutions, not matrix multiplications where INT8 shines
-- Static quantization with proper calibration is the right next step if actual speedup is needed
-
-> Both techniques preserve accuracy well but deliver no real deployment gains. The bottleneck is the compression method, not the aggressiveness. Unstructured pruning can't remove weights; dynamic quant can't speed up convolutions.
+- Static PTQ delivers ~4x size reduction and ~2.9x latency speedup with near-zero accuracy loss
+- Accuracy delta across all valid sparsity levels is negligible — quantization is essentially free on this task
+- Baseline + INT8 outperforms pruned + INT8 on speedup — pruning before quantization adds no deployment benefit
+- Compression gain is driven entirely by quantization; unstructured pruning contributes nothing to size or latency
+- 90% pruned model collapses further under quantization (10% accuracy) — broken weights compound under INT8 conversion
+- Dynamic quantization was tested first but yielded no measurable gains on this conv-heavy architecture; static PTQ with calibrated activation ranges is the correct approach for ResNet-class models
 
 ---
 
@@ -118,18 +133,30 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 ## Repo Structure
 
 ```
-│   .gitignore
-│   README.md
-│   resnet18_cifar10_baseline.pth
-│   resnet18_dynamic_int8.pth
-│   resnet_base.ipynb
-│   resnet_pruning.ipynb
-│   resnet_quantization.ipynb
+practicum_project/
 │
-└───pruned
-        pruned_10.pth
-        pruned_30.pth
-        pruned_50.pth
-        pruned_70.pth
-        pruned_90.pth
+├── pruned/                        # Pruned model checkpoints
+│   ├── pruned_10.pth
+│   ├── pruned_30.pth
+│   ├── pruned_50.pth
+│   ├── pruned_70.pth
+│   └── pruned_90.pth
+│
+├── quantized/                     # Quantized model checkpoints
+│   ├── resnet18_dynamic_int8.pth
+│   ├── resnet18_int8_10pruned.pth
+│   ├── resnet18_int8_30pruned.pth
+│   ├── resnet18_int8_50pruned.pth
+│   ├── resnet18_int8_70pruned.pth
+│   ├── resnet18_int8_90pruned.pth
+│   └── resnet18_static_int8_base.pth
+│
+├── .gitignore
+├── README.md
+│
+├── resnet18_cifar10_baseline.pth  # Baseline trained model
+├── resnet_base_training.ipynb
+├── resnet_dynamic_quantization.ipynb
+├── resnet_pruning.ipynb
+└── resnet_static_quantization.ipynb
 ```
