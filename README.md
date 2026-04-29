@@ -101,9 +101,9 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 |-------|----------|--------------|-----------|---------|
 | Baseline | 95.24% | 21.48 | 42.70 | 1.00× |
 | + Structured 50% pruning | 91.41% | 7.19 | 10.73 | 2.99× |
-| + Dynamic INT8 | 91.27% | 4.95 | 2.75 | **4.34×** |
+| + Static INT8 | 91.27% | 4.95 | 2.75 | **4.34×** |
 
-> Structured pruning + dynamic quantization delivers a deployable edge model. 4.3× faster, 15.5× smaller, 4% accuracy cost.
+> Structured pruning + static quantization delivers a deployable edge model. 4.3× faster, 15.5× smaller, 4% accuracy cost.
 
 ---
 
