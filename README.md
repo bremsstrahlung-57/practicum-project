@@ -28,7 +28,7 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 
 ---
 
-## Phase 2 — Pruning (Complete)
+## Phase 2 — Unstructured Pruning (Complete)
 
 **Method:** Magnitude-based unstructured pruning via `torch.nn.utils.prune`  
 **Fine-tuning:** 15 epochs, LR 1e-4, SGD + cosine annealing  
@@ -47,55 +47,87 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 - Sharp collapse at 90% — drops to ~42%, clearly unusable
 - Size and latency **completely flat** across all sparsity levels
 - Unstructured pruning masks weights in-place; no weights are removed, so no real FLOPs or memory reduction occurs
-- This is expected, not a failure — it's the canonical limitation of unstructured pruning and directly motivates quantization
+- This is expected, not a failure — it's the canonical limitation of unstructured pruning and directly motivates structured pruning
 
 > Unstructured sparsity ≠ hardware speedup. Clean empirical confirmation of a known theoretical limitation.
 
 ---
 
-## Phase 3 — Quantization (Complete)
+## Phase 3 — Structured Pruning + Quantization (Complete)
 
-**Method:** Post-Training Static Quantization (PTQ) via `torch.ao.quantization` FX graph mode  
-**Backend:** fbgemm (x86 CPU)  
-**Calibration:** 100 batches from test set (no augmentation)
+### Phase 3a — Structured Pruning
 
-### Baseline + Static INT8
+**Method:** L1-norm magnitude-based channel pruning via `torch-pruning` (MagnitudePruner)  
+**Dependency handling:** Automatic skip-connection coupling via `torch-pruning` dependency graph  
+**Fine-tuning (30%, 70%):** 15 epochs, LR 1e-4, SGD + cosine annealing  
+**Fine-tuning (50%):** 40 epochs, LR 1e-3, SGD + cosine annealing (eta_min 1e-6), CutMix augmentation, label smoothing 0.1  
+**Channel removal ratios tested:** 30%, 50%, 70%
 
-| Metric | FP32 | INT8 |
-|--------|------|------|
-| Accuracy | 95.24% | 95.25% |
-| Model Size | 44.77 MB | 11.30 MB |
-| Latency (CPU) | 39.22 ms | 13.58 ms |
-| Size Reduction | — | **3.96x** |
-| Speedup | — | **2.89x** |
-
-### Pruned + Static INT8 (selected sparsity levels)
-
-| Sparsity | FP32 Acc | INT8 Acc | Size | Speedup |
-|----------|----------|----------|------|---------|
-| 10% | ~95.3% | ~95.3% | 11.30 MB | ~2.3x |
-| 30% | ~95.2% | ~95.2% | 11.30 MB | ~2.1x |
-| 50% | ~95.1% | ~95.1% | 11.30 MB | ~1.9x |
-| 70% | ~94.9% | ~94.9% | 11.30 MB | ~2.6x |
-| 90% | ~42.0% | ~10.0% | 11.30 MB | — |
+| Model | Acc (FP32) | Latency FP32 (ms) | Size FP32 (MB) | Params (M) | MACs (M) | Speedup vs Baseline |
+|-------|------------|-------------------|----------------|------------|----------|---------------------|
+| Baseline | 95.24% | 21.48 ms | 42.70 MB | 11.17M | 557.2M | 1.00× |
+| Structured-30% | 93.31% | 18.62 ms | 20.89 MB | 5.46M | 269.8M | 1.15× |
+| Structured-50% | 94.25% | 13.30 ms | 10.73 MB | 2.80M | 140.2M | 1.62× |
+| Structured-70% | 86.45% | 4.56 ms | 3.85 MB | 1.00M | 50.0M | 4.71× |
 
 **Key findings:**
-- Static PTQ delivers ~4x size reduction and ~2.9x latency speedup with near-zero accuracy loss
-- Accuracy delta across all valid sparsity levels is negligible — quantization is essentially free on this task
-- Baseline + INT8 outperforms pruned + INT8 on speedup — pruning before quantization adds no deployment benefit
-- Compression gain is driven entirely by quantization; unstructured pruning contributes nothing to size or latency
-- 90% pruned model collapses further under quantization (10% accuracy) — broken weights compound under INT8 conversion
-- Dynamic quantization was tested first but yielded no measurable gains on this conv-heavy architecture; static PTQ with calibrated activation ranges is the correct approach for ResNet-class models
+- Unlike unstructured pruning, structured pruning produces real FLOPs and size reduction — tensors physically shrink
+- 50% channel removal with extended fine-tuning (40 epochs, CutMix, label smoothing) recovers to 94.25% — only 1% below baseline
+- 70% pushes to 4.7× speedup but accuracy drops 8.8% — acceptable for latency-critical applications, borderline for general use
+- `torch-pruning` handles ResNet skip-connection coupling automatically — pruned channels stay consistent across residual branches
+- Extended fine-tuning protocol on 50% model: higher LR (1e-3 vs 1e-4) and CutMix regularization drove 2.8% accuracy recovery over the initial fine-tune result (91.41% → 94.25%)
+
+### Phase 3b — Static Quantization (INT8)
+
+**Method:** Post-training static quantization via `torch.ao.quantization` FX graph mode (`prepare_fx` / `convert_fx`)  
+**Backend:** fbgemm (x86 CPU)  
+**dtype:** `torch.qint8`  
+**Calibration:** subset of CIFAR-10 train set  
+**Note:** Eager mode static PTQ failed due to `aten::add.out` dispatch error on QuantizedCPU backend — residual additions in eager mode require explicit `FloatFunctional` wrappers. FX graph mode resolves this automatically by tracing the full compute graph and handling the residual add as a first-class node.
+
+| Model | Acc (FP32) | Acc (INT8) | Latency FP32 (ms) | Latency INT8 (ms) | Size FP32 (MB) | Size INT8 (MB) | INT8 Speedup vs Baseline |
+|-------|------------|------------|-------------------|-------------------|----------------|----------------|--------------------------|
+| Structured-30% | 93.31% | 93.21% | 18.62 ms | 10.55 ms | 20.89 MB | 5.30 MB | 2.04× |
+| Structured-50% | 94.25% | 94.32% | 13.30 ms | 10.39 ms | 10.73 MB | 2.76 MB | 2.07× |
+| Structured-70% | 86.45% | 86.40% | 4.56 ms | 3.99 ms | 3.85 MB | 1.02 MB | 5.38× |
+
+**Key findings:**
+- Static PTQ adds near-zero accuracy cost (<0.15% across all ratios) — essentially free
+- INT8 gains diminish at higher pruning ratios: 1.77× additional speedup at 30%, only 1.14× at 70% — at ~1M params the model is too small for memory bandwidth to be the bottleneck
+- Size compression from INT8 is consistent (~4×) regardless of pruning ratio
+- FP32 and INT8 latency for Structured-50% measured in the same session for a fair comparison; absolute numbers vary across Colab sessions — relative speedup within a session is the meaningful figure
+- **Hero result: Structured-50% + extended fine-tuning + INT8 — 2.07× faster, 15.5× smaller than baseline, under 1% accuracy drop**
+
+### Combined Stack Summary
+
+| Stage | Accuracy | Latency (ms) | Size (MB) | Speedup |
+|-------|----------|--------------|-----------|---------|
+| Baseline | 95.24% | 21.48 | 42.70 | 1.00× |
+| + Structured 50% pruning (extended fine-tune) | 94.25% | 13.30 | 10.73 | 1.62× |
+| + Static INT8 | 94.32% | 10.39 | 2.76 | **2.07×** |
+
+> Structured pruning + extended fine-tuning + static quantization: 2× faster, 15.5× smaller, under 1% accuracy cost.
 
 ---
 
-## Phase 4 — Knowledge Distillation (Planned)
+## Phase 4 — Knowledge Distillation (Complete)
 
-**Teacher:** ResNet-34 or ResNet-50  
-**Student:** ResNet-18  
-**Goal:** Evaluate whether distillation beats pruning on the accuracy/size trade-off
+**Teacher:** ResNet-50 (CIFAR-adapted, trained from scratch — 93.46% val accuracy)  
+**Student:** Structured-50% pruned ResNet-18 (initialized from fine-tuned checkpoint)  
+**Distillation config:** 40 epochs, LR 1e-3, SGD + cosine annealing, temperature 4.0, alpha 0.7  
+**Goal:** Evaluate whether a larger teacher can improve on the fine-tuned structured-50% accuracy
 
-*Not yet started.*
+| Model | Acc (FP32) | Acc (INT8) | Latency FP32 (ms) | Latency INT8 (ms) | Size INT8 (MB) |
+|-------|------------|------------|-------------------|-------------------|----------------|
+| Fine-tuned Structured-50% | 94.25% | 94.32% | 13.30 ms | 10.39 ms | 2.76 MB |
+| Distilled Structured-50% | 94.11% | 94.22% | 8.79 ms | 5.28 ms | 2.76 MB |
+
+**Key findings:**
+- Distillation did not improve over extended fine-tuning — 94.11% vs 94.25%, within measurement noise
+- The student's capacity (~2.8M params) is the binding constraint; a better training signal cannot recover channels that were physically removed
+- This result is informative: for already-compressed small models, a well-tuned fine-tuning protocol (higher LR, CutMix, more epochs) matches what a much larger teacher can offer via distillation
+- Latency differences between fine-tuned and distilled runs reflect Colab session variance, not an architectural difference — both models are structurally identical
+- Static PTQ cost remains negligible (<0.15%) regardless of training method
 
 ---
 
@@ -108,12 +140,13 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 | Peak RAM | `tracemalloc` |
 | Model size | Checkpoint file size on disk |
 | Sparsity | Weight mask inspection via `torch.nn.utils.prune` |
+| MACs | `tp.utils.count_ops_and_params` via torch-pruning |
 
 ---
 
 ## Theoretical Anchors
 
-- **Lottery Ticket Hypothesis** — Frankle & Carlin (2019): motivates pruning; the 70% stability result is consistent with the existence of sparse trainable subnetworks
+- **Lottery Ticket Hypothesis** — Frankle & Carlin (2019): motivates pruning; the 70% unstructured sparsity stability result is consistent with the existence of sparse trainable subnetworks
 - **Deep Compression** — Han et al. (2016): this project reproduces the pruning + quantization stages in a controlled, reproducible setup
 
 ---
@@ -123,9 +156,9 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 | Phase | Status |
 |-------|--------|
 | Baseline | ✅ Complete |
-| Pruning | ✅ Complete |
-| Quantization | ✅ Complete |
-| Distillation | 🔄 In Progress |
+| Unstructured Pruning | ✅ Complete |
+| Structured Pruning + Quantization | ✅ Complete |
+| Knowledge Distillation | ✅ Complete |
 | Final Analysis & Report | ⏳ Planned |
 
 ---
@@ -135,28 +168,45 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 ```
 practicum_project/
 │
-├── pruned/                        # Pruned model checkpoints
-│   ├── pruned_10.pth
-│   ├── pruned_30.pth
-│   ├── pruned_50.pth
-│   ├── pruned_70.pth
-│   └── pruned_90.pth
-│
-├── quantized/                     # Quantized model checkpoints
-│   ├── resnet18_dynamic_int8.pth
-│   ├── resnet18_int8_10pruned.pth
-│   ├── resnet18_int8_30pruned.pth
-│   ├── resnet18_int8_50pruned.pth
-│   ├── resnet18_int8_70pruned.pth
-│   ├── resnet18_int8_90pruned.pth
-│   └── resnet18_static_int8_base.pth
+├── models/
+│   ├── basline/                       # Baseline trained model
+│   │   └── resnet18_cifar10_baseline.pth
+│   ├── distillation/                  # Knowledge distillation models
+│   │   ├── structured_pruned_50pct_distil_int8.pt
+│   │   ├── structured_pruned_50pct_distilled.pth
+│   │   └── teacher_resnet50.pth
+│   ├── pruned/                        # Pruned model checkpoints
+│   │   ├── pruned_10.pth
+│   │   ├── pruned_30.pth
+│   │   ├── pruned_50.pth
+│   │   ├── pruned_70.pth
+│   │   └── pruned_90.pth
+│   ├── quantized/                     # Quantized model checkpoints
+│   │   ├── resnet18_dynamic_int8.pth
+│   │   ├── resnet18_int8_10pruned.pth
+│   │   ├── resnet18_int8_30pruned.pth
+│   │   ├── resnet18_int8_50pruned.pth
+│   │   ├── resnet18_int8_70pruned.pth
+│   │   ├── resnet18_int8_90pruned.pth
+│   │   └── resnet18_static_int8_base.pth
+│   └── structured_pruning/            # Structured pruning checkpoints
+│       ├── pruned/                    # fine tuned too
+│       │   ├── structured_pruned_30pct_fp32.pth
+│       │   ├── structured_pruned_50pct_fp32.pth
+│       │   └── structured_pruned_70pct_fp32.pth
+│       └── pruned_and_quantized/
+│           ├── structured_pruned_30pct_int8.pt
+│           ├── structured_pruned_50pct_int8.pt
+│           └── structured_pruned_70pct_int8.pt
 │
 ├── .gitignore
 ├── README.md
 │
-├── resnet18_cifar10_baseline.pth  # Baseline trained model
-├── resnet_base_training.ipynb
+├── resnet_base_traning.ipynb
+├── resnet_distillation_structured_pruned_50.ipynb
 ├── resnet_dynamic_quantization.ipynb
 ├── resnet_pruning.ipynb
-└── resnet_static_quantization.ipynb
+├── resnet_static_pruned_finetuning.ipynb
+├── resnet_static_quantization.ipynb
+└── resnet_structured_pruning.ipynb
 ```
