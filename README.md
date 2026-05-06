@@ -59,21 +59,23 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 
 **Method:** L1-norm magnitude-based channel pruning via `torch-pruning` (MagnitudePruner)  
 **Dependency handling:** Automatic skip-connection coupling via `torch-pruning` dependency graph  
-**Fine-tuning:** 15 epochs, LR 1e-4, SGD + cosine annealing  
+**Fine-tuning (30%, 70%):** 15 epochs, LR 1e-4, SGD + cosine annealing  
+**Fine-tuning (50%):** 40 epochs, LR 1e-3, SGD + cosine annealing (eta_min 1e-6), CutMix augmentation, label smoothing 0.1  
 **Channel removal ratios tested:** 30%, 50%, 70%
 
 | Model | Acc (FP32) | Latency FP32 (ms) | Size FP32 (MB) | Params (M) | MACs (M) | Speedup vs Baseline |
 |-------|------------|-------------------|----------------|------------|----------|---------------------|
 | Baseline | 95.24% | 21.48 ms | 42.70 MB | 11.17M | 557.2M | 1.00× |
 | Structured-30% | 93.31% | 18.62 ms | 20.89 MB | 5.46M | 269.8M | 1.15× |
-| Structured-50% | 91.41% | 7.19 ms | 10.73 MB | 2.80M | 140.2M | 2.99× |
+| Structured-50% | 94.25% | 13.30 ms | 10.73 MB | 2.80M | 140.2M | 1.62× |
 | Structured-70% | 86.45% | 4.56 ms | 3.85 MB | 1.00M | 50.0M | 4.71× |
 
 **Key findings:**
 - Unlike unstructured pruning, structured pruning produces real FLOPs and size reduction — tensors physically shrink
-- 50% channel removal is the sweet spot: 3× latency reduction, 4× size reduction, only 3.8% accuracy drop
+- 50% channel removal with extended fine-tuning (40 epochs, CutMix, label smoothing) recovers to 94.25% — only 1% below baseline
 - 70% pushes to 4.7× speedup but accuracy drops 8.8% — acceptable for latency-critical applications, borderline for general use
 - `torch-pruning` handles ResNet skip-connection coupling automatically — pruned channels stay consistent across residual branches
+- Extended fine-tuning protocol on 50% model: higher LR (1e-3 vs 1e-4) and CutMix regularization drove 2.8% accuracy recovery over the initial fine-tune result (91.41% → 94.25%)
 
 ### Phase 3b — Static Quantization (INT8)
 
@@ -86,34 +88,46 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 | Model | Acc (FP32) | Acc (INT8) | Latency FP32 (ms) | Latency INT8 (ms) | Size FP32 (MB) | Size INT8 (MB) | INT8 Speedup vs Baseline |
 |-------|------------|------------|-------------------|-------------------|----------------|----------------|--------------------------|
 | Structured-30% | 93.31% | 93.21% | 18.62 ms | 10.55 ms | 20.89 MB | 5.30 MB | 2.04× |
-| Structured-50% | 91.41% | 91.27% | 7.19 ms | 4.95 ms | 10.73 MB | 2.75 MB | 4.34× |
+| Structured-50% | 94.25% | 94.32% | 13.30 ms | 10.39 ms | 10.73 MB | 2.76 MB | 2.07× |
 | Structured-70% | 86.45% | 86.40% | 4.56 ms | 3.99 ms | 3.85 MB | 1.02 MB | 5.38× |
 
 **Key findings:**
 - Static PTQ adds near-zero accuracy cost (<0.15% across all ratios) — essentially free
 - INT8 gains diminish at higher pruning ratios: 1.77× additional speedup at 30%, only 1.14× at 70% — at ~1M params the model is too small for memory bandwidth to be the bottleneck
 - Size compression from INT8 is consistent (~4×) regardless of pruning ratio
-- **Hero result: Structured-50% + INT8 — 4.34× faster, 15.5× smaller than baseline, only 3.97% accuracy drop**
+- FP32 and INT8 latency for Structured-50% measured in the same session for a fair comparison; absolute numbers vary across Colab sessions — relative speedup within a session is the meaningful figure
+- **Hero result: Structured-50% + extended fine-tuning + INT8 — 2.07× faster, 15.5× smaller than baseline, under 1% accuracy drop**
 
 ### Combined Stack Summary
 
 | Stage | Accuracy | Latency (ms) | Size (MB) | Speedup |
 |-------|----------|--------------|-----------|---------|
 | Baseline | 95.24% | 21.48 | 42.70 | 1.00× |
-| + Structured 50% pruning | 91.41% | 7.19 | 10.73 | 2.99× |
-| + Static INT8 | 91.27% | 4.95 | 2.75 | **4.34×** |
+| + Structured 50% pruning (extended fine-tune) | 94.25% | 13.30 | 10.73 | 1.62× |
+| + Static INT8 | 94.32% | 10.39 | 2.76 | **2.07×** |
 
-> Structured pruning + static quantization delivers a deployable edge model. 4.3× faster, 15.5× smaller, 4% accuracy cost.
+> Structured pruning + extended fine-tuning + static quantization: 2× faster, 15.5× smaller, under 1% accuracy cost.
 
 ---
 
-## Phase 4 — Knowledge Distillation (Planned)
+## Phase 4 — Knowledge Distillation (Complete)
 
-**Teacher:** ResNet-34 or ResNet-50  
-**Student:** ResNet-18  
-**Goal:** Evaluate whether distillation beats pruning on the accuracy/size trade-off
+**Teacher:** ResNet-50 (CIFAR-adapted, trained from scratch — 93.46% val accuracy)  
+**Student:** Structured-50% pruned ResNet-18 (initialized from fine-tuned checkpoint)  
+**Distillation config:** 40 epochs, LR 1e-3, SGD + cosine annealing, temperature 4.0, alpha 0.7  
+**Goal:** Evaluate whether a larger teacher can improve on the fine-tuned structured-50% accuracy
 
-*Not yet started.*
+| Model | Acc (FP32) | Acc (INT8) | Latency FP32 (ms) | Latency INT8 (ms) | Size INT8 (MB) |
+|-------|------------|------------|-------------------|-------------------|----------------|
+| Fine-tuned Structured-50% | 94.25% | 94.32% | 13.30 ms | 10.39 ms | 2.76 MB |
+| Distilled Structured-50% | 94.11% | 94.22% | 8.79 ms | 5.28 ms | 2.76 MB |
+
+**Key findings:**
+- Distillation did not improve over extended fine-tuning — 94.11% vs 94.25%, within measurement noise
+- The student's capacity (~2.8M params) is the binding constraint; a better training signal cannot recover channels that were physically removed
+- This result is informative: for already-compressed small models, a well-tuned fine-tuning protocol (higher LR, CutMix, more epochs) matches what a much larger teacher can offer via distillation
+- Latency differences between fine-tuned and distilled runs reflect Colab session variance, not an architectural difference — both models are structurally identical
+- Static PTQ cost remains negligible (<0.15%) regardless of training method
 
 ---
 
@@ -144,7 +158,7 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 | Baseline | ✅ Complete |
 | Unstructured Pruning | ✅ Complete |
 | Structured Pruning + Quantization | ✅ Complete |
-| Knowledge Distillation | 🔄 Planned |
+| Knowledge Distillation | ✅ Complete |
 | Final Analysis & Report | ⏳ Planned |
 
 ---
@@ -157,6 +171,10 @@ practicum_project/
 ├── models/
 │   ├── basline/                       # Baseline trained model
 │   │   └── resnet18_cifar10_baseline.pth
+│   ├── distillation/                  # Knowledge distillation models
+│   │   ├── structured_pruned_50pct_distil_int8.pt
+│   │   ├── structured_pruned_50pct_distilled.pth
+│   │   └── teacher_resnet50.pth
 │   ├── pruned/                        # Pruned model checkpoints
 │   │   ├── pruned_10.pth
 │   │   ├── pruned_30.pth
@@ -185,6 +203,7 @@ practicum_project/
 ├── README.md
 │
 ├── resnet_base_traning.ipynb
+├── resnet_distillation_structured_pruned_50.ipynb
 ├── resnet_dynamic_quantization.ipynb
 ├── resnet_pruning.ipynb
 ├── resnet_static_quantization.ipynb
