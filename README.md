@@ -206,6 +206,7 @@ practicum_project/
 ├── resnet_distillation_structured_pruned_50.ipynb
 ├── resnet_dynamic_quantization.ipynb
 ├── resnet_pruning.ipynb
+├── resnet_static_pruned_finetuning.ipynb
 ├── resnet_static_quantization.ipynb
 └── resnet_structured_pruning.ipynb
 ```
