@@ -95,8 +95,8 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 - Static PTQ adds near-zero accuracy cost (<0.15% across all ratios) — essentially free
 - INT8 gains diminish at higher pruning ratios: 1.77× additional speedup at 30%, only 1.14× at 70% — at ~1M params the model is too small for memory bandwidth to be the bottleneck
 - Size compression from INT8 is consistent (~4×) regardless of pruning ratio
-- Structured-50% latency re-measured in the same session as INT8 for a fair comparison (FP32: 13.30ms, INT8: 10.39ms); absolute numbers vary across Colab sessions — relative speedup within a session is the meaningful figure
-- **Hero result: Structured-50% + extended fine-tuning + INT8 — 2.07× faster, 15.5× smaller than baseline, only 0.92% accuracy drop**
+- FP32 and INT8 latency for Structured-50% measured in the same session for a fair comparison; absolute numbers vary across Colab sessions — relative speedup within a session is the meaningful figure
+- **Hero result: Structured-50% + extended fine-tuning + INT8 — 2.07× faster, 15.5× smaller than baseline, under 1% accuracy drop**
 
 ### Combined Stack Summary
 
@@ -110,13 +110,24 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 
 ---
 
-## Phase 4 — Knowledge Distillation (Planned)
+## Phase 4 — Knowledge Distillation (Complete)
 
-**Teacher:** ResNet-50  
-**Student:** ResNet-18  
-**Goal:** Evaluate whether distillation beats pruning on the accuracy/size trade-off
+**Teacher:** ResNet-50 (CIFAR-adapted, trained from scratch — 93.46% val accuracy)  
+**Student:** Structured-50% pruned ResNet-18 (initialized from fine-tuned checkpoint)  
+**Distillation config:** 40 epochs, LR 1e-3, SGD + cosine annealing, temperature 4.0, alpha 0.7  
+**Goal:** Evaluate whether a larger teacher can improve on the fine-tuned structured-50% accuracy
 
-*Not yet started.*
+| Model | Acc (FP32) | Acc (INT8) | Latency FP32 (ms) | Latency INT8 (ms) | Size INT8 (MB) |
+|-------|------------|------------|-------------------|-------------------|----------------|
+| Fine-tuned Structured-50% | 94.25% | 94.32% | 13.30 ms | 10.39 ms | 2.76 MB |
+| Distilled Structured-50% | 94.11% | 94.22% | 8.79 ms | 5.28 ms | 2.76 MB |
+
+**Key findings:**
+- Distillation did not improve over extended fine-tuning — 94.11% vs 94.25%, within measurement noise
+- The student's capacity (~2.8M params) is the binding constraint; a better training signal cannot recover channels that were physically removed
+- This result is informative: for already-compressed small models, a well-tuned fine-tuning protocol (higher LR, CutMix, more epochs) matches what a much larger teacher can offer via distillation
+- Latency differences between fine-tuned and distilled runs reflect Colab session variance, not an architectural difference — both models are structurally identical
+- Static PTQ cost remains negligible (<0.15%) regardless of training method
 
 ---
 
@@ -147,7 +158,7 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 | Baseline | ✅ Complete |
 | Unstructured Pruning | ✅ Complete |
 | Structured Pruning + Quantization | ✅ Complete |
-| Knowledge Distillation | 🔄 Planned |
+| Knowledge Distillation | ✅ Complete |
 | Final Analysis & Report | ⏳ Planned |
 
 ---
@@ -160,9 +171,10 @@ practicum_project/
 ├── models/
 │   ├── basline/                       # Baseline trained model
 │   │   └── resnet18_cifar10_baseline.pth
-│   ├── final_finetuned/               # Finetuned pruned models
-│   │   ├── structured_pruned_50pct_finetuned_int8.pt
-│   │   └── structured_pruned_50pct_fp32_finetuned40.pth
+│   ├── distillation/                  # Knowledge distillation models
+│   │   ├── structured_pruned_50pct_distil_int8.pt
+│   │   ├── structured_pruned_50pct_distilled.pth
+│   │   └── teacher_resnet50.pth
 │   ├── pruned/                        # Pruned model checkpoints
 │   │   ├── pruned_10.pth
 │   │   ├── pruned_30.pth
@@ -178,7 +190,7 @@ practicum_project/
 │   │   ├── resnet18_int8_90pruned.pth
 │   │   └── resnet18_static_int8_base.pth
 │   └── structured_pruning/            # Structured pruning checkpoints
-│       ├── pruned/
+│       ├── pruned/                    # fine tuned too
 │       │   ├── structured_pruned_30pct_fp32.pth
 │       │   ├── structured_pruned_50pct_fp32.pth
 │       │   └── structured_pruned_70pct_fp32.pth
@@ -191,10 +203,9 @@ practicum_project/
 ├── README.md
 │
 ├── resnet_base_traning.ipynb
+├── resnet_distillation_structured_pruned_50.ipynb
 ├── resnet_dynamic_quantization.ipynb
 ├── resnet_pruning.ipynb
-├── resnet_static_pruned_finetuning.ipynb
-├── resnet_distillation_34.ipynb
 ├── resnet_static_quantization.ipynb
 └── resnet_structured_pruning.ipynb
 ```
