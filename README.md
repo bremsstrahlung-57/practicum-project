@@ -159,7 +159,9 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 | Unstructured Pruning | ✅ Complete |
 | Structured Pruning + Quantization | ✅ Complete |
 | Knowledge Distillation | ✅ Complete |
-| Final Analysis & Report | ⏳ Planned |
+| Final Analysis & Report | ✅ Complete |
+
+**[Final Analysis & Report](Integrated_Project_Report_ResNet18_Compression.docx)**
 
 ---
 
@@ -168,6 +170,7 @@ Training from scratch on CIFAR-10. Checkpoint saved to GitHub for persistence ac
 ```
 practicum_project/
 │
+├── Images and Results/                # Images and results of the project
 ├── models/
 │   ├── basline/                       # Baseline trained model
 │   │   └── resnet18_cifar10_baseline.pth
