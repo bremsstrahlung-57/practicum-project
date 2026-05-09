@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CNN compression demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <header>
+    <div class="header-left">
+      <span class="header-tag">AIDS260</span>
+      <h1>CNN compression demo</h1>
+      <p class="subtitle">structured pruning · knowledge distillation · edge deployment</p>
+    </div>
+    <div class="header-right">
+      <div class="backend-status">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-label" id="statusLabel">checking...</span>
+      </div>
+    </div>
+  </header>
+
+  <div id="offlineBanner" class="offline-banner hidden">
+    backend offline — start the FastAPI server at port 8000
+  </div>
+
+  <section class="filmstrip-section">
+    <div class="section-label">sample images <span class="section-hint">— click to predict</span></div>
+    <div class="filmstrip-scroll">
+      <div class="filmstrip" id="filmstrip"></div>
+    </div>
+  </section>
+
+  <section class="upload-section">
+    <div class="section-label">or upload your own</div>
+    <div class="upload-zone" id="uploadZone">
+      <div class="upload-idle" id="uploadIdle">
+        <div class="upload-icon">↑</div>
+        <div class="upload-text">drag & drop or <span class="upload-link">browse files</span></div>
+        <div class="upload-hint">JPG · PNG · WEBP</div>
+      </div>
+      <div class="upload-preview hidden" id="uploadPreview">
+        <img id="uploadThumb" src="" alt="uploaded image" />
+        <div class="upload-meta">
+          <span id="uploadName" class="upload-name"></span>
+          <button class="upload-clear" id="uploadClear" aria-label="remove uploaded image">✕</button>
+        </div>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden />
+  </section>
+
+  <section class="models-section">
+    <div class="model-card" id="card70">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="card-ratio">70%</span>
+          <span class="card-label">pruned · FP32</span>
+        </div>
+        <div class="card-badge">pruned_70_fp32</div>
+      </div>
+
+      <div class="card-body">
+        <div class="card-state state-stats" id="state70-stats">
+          <table class="stats-table">
+            <tr><td class="stat-key">parameters</td><td class="stat-val">~1.1M</td></tr>
+            <tr><td class="stat-key">model size</td><td class="stat-val">~4.0 MB</td></tr>
+            <tr><td class="stat-key">pruning</td><td class="stat-val">70% structured</td></tr>
+            <tr><td class="stat-key">distilled</td><td class="stat-val">yes (ResNet-50)</td></tr>
+            <tr><td class="stat-key">precision</td><td class="stat-val">FP32</td></tr>
+          </table>
+          <div class="waiting-hint">select an image to predict</div>
+        </div>
+
+        <div class="card-state state-loading hidden" id="state70-loading">
+          <div class="spinner"></div>
+          <div class="loading-text">running inference...</div>
+        </div>
+
+        <div class="card-state state-result hidden" id="state70-result">
+          <div class="result-top">
+            <img class="result-thumb" id="thumb70" src="" alt="" />
+            <div class="result-info">
+              <div class="result-class" id="class70">—</div>
+              <div class="result-conf" id="conf70">—</div>
+              <div class="result-latency" id="lat70">—</div>
+            </div>
+          </div>
+          <div class="probs-list" id="probs70"></div>
+        </div>
+
+        <div class="card-state state-error hidden" id="state70-error">
+          <div class="error-text">prediction failed — check backend</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="model-card" id="card50">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="card-ratio">50%</span>
+          <span class="card-label">pruned · FP32</span>
+        </div>
+        <div class="card-badge">pruned_50_fp32</div>
+      </div>
+
+      <div class="card-body">
+        <div class="card-state state-stats" id="state50-stats">
+          <table class="stats-table">
+            <tr><td class="stat-key">parameters</td><td class="stat-val">~2.8M</td></tr>
+            <tr><td class="stat-key">model size</td><td class="stat-val">~11.0 MB</td></tr>
+            <tr><td class="stat-key">pruning</td><td class="stat-val">50% structured</td></tr>
+            <tr><td class="stat-key">distilled</td><td class="stat-val">yes (ResNet-50)</td></tr>
+            <tr><td class="stat-key">precision</td><td class="stat-val">FP32</td></tr>
+          </table>
+          <div class="waiting-hint">select an image to predict</div>
+        </div>
+
+        <div class="card-state state-loading hidden" id="state50-loading">
+          <div class="spinner"></div>
+          <div class="loading-text">running inference...</div>
+        </div>
+
+        <div class="card-state state-result hidden" id="state50-result">
+          <div class="result-top">
+            <img class="result-thumb" id="thumb50" src="" alt="" />
+            <div class="result-info">
+              <div class="result-class" id="class50">—</div>
+              <div class="result-conf" id="conf50">—</div>
+              <div class="result-latency" id="lat50">—</div>
+            </div>
+          </div>
+          <div class="probs-list" id="probs50"></div>
+        </div>
+
+        <div class="card-state state-error hidden" id="state50-error">
+          <div class="error-text">prediction failed — check backend</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>backend · <code>localhost:8000</code></span>
+    <span>ResNet-18 · CIFAR-10 · 10 classes</span>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
