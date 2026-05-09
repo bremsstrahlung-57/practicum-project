@@ -38,6 +38,37 @@ def load_fp32_model(path: str, pruning_ratio: float) -> nn.Module:
 
 
 def run_inference(model: nn.Module, image_bytes: bytes) -> dict:
+    import time
+
+    t0 = time.perf_counter()
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    t1 = time.perf_counter()
+
+    tensor = TRANSFORM(image).unsqueeze(0)
+    t2 = time.perf_counter()
+
+    with torch.no_grad():
+        logits = model(tensor)
+    t3 = time.perf_counter()
+
+    probs = torch.softmax(logits, dim=1).squeeze()
+    top_prob, top_idx = torch.max(probs, dim=0)
+    t4 = time.perf_counter()
+
+    print(f"Image open : {(t1-t0)*1000:.1f} ms")
+    print(f"Transform  : {(t2-t1)*1000:.1f} ms")
+    print(f"Forward    : {(t3-t2)*1000:.1f} ms")
+    print(f"Postprocess: {(t4-t3)*1000:.1f} ms")
+
+    return {
+        "predicted_class": CIFAR10_CLASSES[top_idx.item()],
+        "confidence": round(top_prob.item() * 100, 2),
+        "all_probs": {
+            cls: round(probs[i].item() * 100, 2)
+            for i, cls in enumerate(CIFAR10_CLASSES)
+        }
+    }
+
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     tensor = TRANSFORM(image).unsqueeze(0)
 
