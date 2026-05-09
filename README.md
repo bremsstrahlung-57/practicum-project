@@ -177,6 +177,7 @@ practicum_project/
 │   ├── distillation/                  # Knowledge distillation models
 │   │   ├── structured_pruned_50pct_distil_int8.pt
 │   │   ├── structured_pruned_50pct_distilled.pth
+│   │   ├── resnet18_pruned70_distilled.pth
 │   │   └── teacher_resnet50.pth
 │   ├── pruned/                        # Pruned model checkpoints
 │   │   ├── pruned_10.pth
@@ -211,5 +212,6 @@ practicum_project/
 ├── resnet_pruning.ipynb
 ├── resnet_static_pruned_finetuning.ipynb
 ├── resnet_static_quantization.ipynb
+├── resnet_qat_main.ipynb
 └── resnet_structured_pruning.ipynb
 ```
