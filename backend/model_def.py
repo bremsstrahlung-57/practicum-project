@@ -1,8 +1,7 @@
-# backend/model_def.py
 import torch
 import torch.nn as nn
-import torchvision
 import torch_pruning as tp
+import torchvision
 
 
 def get_cifar_resnet18():
@@ -29,6 +28,6 @@ def get_pruned_architecture(pruning_ratio=0.7):
         pruning_ratio=pruning_ratio,
         ignored_layers=[model.fc],
     )
-    pruner.step()  # gives us the correct reduced dimensions, random weights
+    pruner.step()
 
     return model
