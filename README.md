@@ -203,15 +203,26 @@ practicum_project/
 │           ├── structured_pruned_50pct_int8.pt
 │           └── structured_pruned_70pct_int8.pt
 │
+├── notebooks
+│   ├── resnet_base_traning.ipynb
+│   ├── resnet_distillation_structured_pruned_50.ipynb
+│   ├── resnet_dynamic_quantization.ipynb
+│   ├── resnet_pruning.ipynb
+│   ├── resnet_static_pruned_finetuning.ipynb
+│   ├── resnet_static_quantization.ipynb
+│   ├── resnet_qat_main.ipynb
+│   └── resnet_structured_pruning.ipynb
+│
+├── files
+│   ├── Report.pdf
+│   └── Research_Paper.pdf
+│
+├── backend/
+│
+├── frontend/
+│
 ├── .gitignore
 ├── README.md
 │
-├── resnet_base_traning.ipynb
-├── resnet_distillation_structured_pruned_50.ipynb
-├── resnet_dynamic_quantization.ipynb
-├── resnet_pruning.ipynb
-├── resnet_static_pruned_finetuning.ipynb
-├── resnet_static_quantization.ipynb
-├── resnet_qat_main.ipynb
 └── resnet_structured_pruning.ipynb
 ```
