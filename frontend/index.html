@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>CNN compression demo</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <div id="toast" class="toast" aria-live="polite"></div>
+
+        <header>
+            <div class="header-left">
+                <span class="header-tag">AIDS260</span>
+                <h1>CNN compression demo</h1>
+                <p class="subtitle">
+                    structured pruning · knowledge distillation · edge
+                    deployment
+                </p>
+            </div>
+            <div class="header-right">
+                <div class="backend-status">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span class="status-label" id="statusLabel"
+                        >checking...</span
+                    >
+                </div>
+            </div>
+        </header>
+
+        <div id="offlineBanner" class="offline-banner hidden">
+            backend offline — start the FastAPI server at port 8000
+        </div>
+
+        <section class="filmstrip-section">
+            <div class="section-label">
+                sample images
+                <span class="section-hint">— click to predict</span>
+            </div>
+            <div class="filmstrip-scroll">
+                <div class="filmstrip" id="filmstrip"></div>
+            </div>
+        </section>
+
+        <section class="upload-section">
+            <div class="section-label">or upload your own</div>
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-idle" id="uploadIdle">
+                    <div class="upload-icon">↑</div>
+                    <div class="upload-text">
+                        drag & drop or
+                        <span class="upload-link">browse files</span>
+                    </div>
+                    <div class="upload-hint">JPG · PNG · WEBP</div>
+                </div>
+                <div class="upload-preview hidden" id="uploadPreview">
+                    <img id="uploadThumb" src="" alt="uploaded image" />
+                    <div class="upload-meta">
+                        <span id="uploadName" class="upload-name"></span>
+                        <button
+                            class="upload-clear"
+                            id="uploadClear"
+                            aria-label="remove uploaded image"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <input
+                type="file"
+                id="fileInput"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+            />
+        </section>
+
+        <section class="models-section" id="modelsSection"></section>
+
+        <footer>
+            <span>backend · <code>localhost:8000</code></span>
+            <span>ResNet-18 · CIFAR-10 · 10 classes</span>
+        </footer>
+
+        <script src="script.js"></script>
+    </body>
+</html>
